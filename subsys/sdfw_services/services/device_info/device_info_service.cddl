@@ -1,0 +1,57 @@
+; 32 bytes decimal digit IMEI value, BCD encoded
+uuid = bstr .size 32
+
+uuid_status_success = 0
+uuid_status_internal_error = 0x1001001
+uuid_status_unprogrammed = 0x1001002
+
+; These are message identifiers used to separate in the decoder what
+; type of request is incoming.
+
+read_uuid_req_id = 1
+write_uuid_req_id = 2
+
+; Response status codes
+uuid_status_code = (
+      uuid_status_success,
+      uuid_status_internal_error,
+      uuid_status_unprogrammed,
+)
+
+; We now define the REQUESTS that come from the client
+
+; Read the uuid, this has no parameters.
+read_uuid_req = read_uuid_req_id
+
+; Write an UUID slot, this message has some parameters
+write_uuid_req = (
+      write_uuid_req_id,
+      uuid: uuid_value,
+)
+
+; Generic definition of any UUID service request.
+; Its either a 'read uuid' request or a 'write uuid' request
+
+uuid_req = [
+      msg: (
+            read_uuid_req \
+            write_uuid_req
+      )
+]
+
+; We now define the RESPONSES that comes from the server
+
+
+; UUID read response
+read_uuid_rsp = (
+      read_uuid_req_id,
+      uuid: uuid_value,
+)
+
+; UUID write response. Its either empty with an error message or
+; contains the UUID
+
+write_uuid_rsp = (
+      write_uuid_req_id,
+      status: uuid_status_code
+)
