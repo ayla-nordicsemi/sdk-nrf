@@ -5,6 +5,7 @@
  */
 
 #include <sdfw/sdfw_services/echo_service.h>
+#include <sdfw/sdfw_services/device_info_service.h>
 #include <sdfw/sdfw_services/reset_evt_service.h>
 #include <sdfw/sdfw_services/sdfw_update_service.h>
 
@@ -70,6 +71,21 @@ static void sdfw_update(void)
 	}
 }
 
+static void device_info(void)
+{
+	int err;
+
+	char uuid_value[41] = "00000000-0000-0000-0000-000000000000\0";
+	int uuid_value_len = strlen(uuid_value);
+	err = ssf_device_info_get_uuid(uuid_value, uuid_value_len);
+	if (err != 0) {
+		LOG_ERR("Unable to get device info UUID, err: %d", err);
+		return;
+	}
+
+	LOG_INF("device_info: device UUID = %s", uuid_value);
+}
+
 int main(void)
 {
 	LOG_INF("ssf client sample (%s)", CONFIG_BOARD);
@@ -84,6 +100,10 @@ int main(void)
 
 	if (IS_ENABLED(CONFIG_ENABLE_SDFW_UPDATE_REQUEST)) {
 		sdfw_update();
+	}
+
+	if (IS_ENABLED(CONFIG_ENABLE_DEVICE_INFO_REQUEST)) {
+		device_info();
 	}
 
 	return 0;
