@@ -4,36 +4,48 @@
 ; SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 ;
 
-; struct typedefs
 ; .. include_startingpoint_device_info_cddl_rst
+
+device_info_status = (SUCCESS: 0) /
+                     (INTERNAL_ERROR: 16781313) / 
+                     (UNPROGRAMMED: 16781314)
+
+device_info_target = (UUID: 0) / 
+                     (TYPE: 1) /
+                     (TESTIMPRINT: 2) /
+                     (PARTNO: 3) /
+                     (HWREVISION: 4) /
+                     (PRODUCTIONREVISION: 5)
+
 ; Device Info service request payload.
 device_info_service_read_req = (
-      2,
-      target: uint, ; 0 - uuid, 1 - hw_version
+      1,
+      target: device_info_target,
 )
 
 device_info_service_write_req = (
       2,
-      target: uint, ; 0 - uuid, 1 - hw_version
-      data: tstr,
+      target: device_info_target,
+	data: [1*8 uint] ; table of at least 1 int - at most 8 int
 )
 
 ; Device Info service response to read data.
 device_info_service_read_resp = (
-      3,
-      target: uint, ; 0 - uuid, 1 - hw_version
-	status: uint, ; 0 - success, 0x1001001 - internal_error, 0x1001002 - unprogrammed
-	data: tstr,
+      1,
+      target: device_info_target,
+	status: device_info_status,
+	data: [1*8 uint] ; table of at least 1 int - at most 8 int
 )
 
 ; Device Info service response to write payload.
 device_info_service_write_resp = (
-      3,
-      target: uint, ; 0 - uuid, 1 - hw_version
-	status: uint, ; 0 - success, 0x1001001 - internal_error, 0x1001002 - unprogrammed
+      2,
+      target: device_info_target,
+	status: device_info_status,
 )
 
 device_info_req = [
+      3,
       msg: (
             device_info_service_read_req /
             device_info_service_write_req
@@ -41,10 +53,11 @@ device_info_req = [
 ]
 
 device_info_resp = [
+      3,
       msg: (
             device_info_service_read_resp /
             device_info_service_write_resp
       ),
 ]
 
-; .. include_startingpoint_device_info_cddl_rst
+; .. include_endingpoint_device_info_cddl_rst
