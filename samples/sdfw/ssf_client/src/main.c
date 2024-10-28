@@ -75,15 +75,16 @@ static void device_info(void)
 {
 	int err;
 
-	char uuid_value[41] = "00000000-0000-0000-0000-000000000000\0";
-	int uuid_value_len = strlen(uuid_value);
-	err = ssf_device_info_get_uuid(uuid_value, uuid_value_len);
+	uint32_t uuid_resp_words[4] = { 0 };
+	size_t uuid_resp_words_length = sizeof(uuid_resp_words);
+	err = ssf_device_info_get_uuid(uuid_resp_words, uuid_resp_words_length);
 	if (err != 0) {
 		LOG_ERR("Unable to get device info UUID, err: %d", err);
 		return;
 	}
 
-	LOG_INF("device_info: device UUID = %s", uuid_value);
+	LOG_INF("device_info: device UUID = 0x%08x - 0x%08x - 0x%08x - 0x%08x", 
+			uuid_resp_words[0], uuid_resp_words[1], uuid_resp_words[2], uuid_resp_words[3]);
 }
 
 int main(void)
