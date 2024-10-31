@@ -37,6 +37,11 @@ config UPDATE_REQUEST_CHECK_DATA
 	  Safety option to abort the update request if the download data is invalid
 	  or not programmed at all.
 
+config ENABLE_PSA_CRYPTO_REQUEST
+    bool "Enable SSF PSA Crypto service(s)"
+    depends on SSF_PSA_CRYPTO_SERVICE_ENABLED
+    default y
+
 module = SSF_CLIENT_SAMPLE
 module-str = SSF Client Sample
 source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"

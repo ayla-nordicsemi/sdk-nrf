@@ -5,8 +5,11 @@
  */
 
 #include <sdfw/sdfw_services/echo_service.h>
+#include <sdfw/sdfw_services/crypto_service.h>
 #include <sdfw/sdfw_services/reset_evt_service.h>
 #include <sdfw/sdfw_services/sdfw_update_service.h>
+
+#include <psa/nrf_platform_key_ids.h>
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -70,6 +73,37 @@ static void sdfw_update(void)
 	}
 }
 
+static void export_ika_public_key(void)
+{
+	int err;
+
+	const uint32_t IAK_KEY_ID = IAK_APPLICATION_GEN1;
+
+	size_t public_key_buffer_size = 256;
+	uint8_t public_key_buffer[PSA_EXPORT_PUBLIC_KEY_MAX_SIZE] = { 0 };
+	size_t public_key_buffer_written_bytes = 0;
+
+	LOG_INF("##### export_ika_public_key : now calling ssf_psa_crypto_init #####");
+	err = ssf_psa_crypto_init();
+	if (PSA_SUCCESS == err)
+	{
+		LOG_INF("##### export_ika_public_key : now calling ssf_psa_export_public_key #####");
+		LOG_INF("##### export_ika_public_key : call to get key 0x%08x - size %d #####", IAK_KEY_ID, public_key_buffer_size);
+		err = ssf_psa_export_public_key((mbedtls_svc_key_id_t )IAK_KEY_ID, 
+										public_key_buffer, 
+										public_key_buffer_size, 
+										&public_key_buffer_written_bytes);
+		if (err != 0) {
+				LOG_ERR("Unable to get public IAK_KEY, err: %d", err);
+				return;
+		} 
+
+		LOG_INF("export_ika_public_key: IAK_KEY size = %d", public_key_buffer_written_bytes);
+	} else {
+		LOG_INF("##### export_ika_public_key : failed in call ssf_psa_crypto_init : err = %d #####", err);
+	}
+}
+
 int main(void)
 {
 	LOG_INF("ssf client sample (%s)", CONFIG_BOARD);
@@ -84,6 +118,11 @@ int main(void)
 
 	if (IS_ENABLED(CONFIG_ENABLE_SDFW_UPDATE_REQUEST)) {
 		sdfw_update();
+	}
+
+	if (IS_ENABLED(CONFIG_ENABLE_PSA_CRYPTO_REQUEST)) {
+		LOG_INF("##### ssf client sample : now calling export_ika_public_key #####");
+		export_ika_public_key();
 	}
 
 	return 0;
