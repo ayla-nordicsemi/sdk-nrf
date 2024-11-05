@@ -5,9 +5,12 @@
  */
 
 #include <sdfw/sdfw_services/echo_service.h>
-#include <sdfw/sdfw_services/crypto_service.h>
+
 #include <sdfw/sdfw_services/reset_evt_service.h>
 #include <sdfw/sdfw_services/sdfw_update_service.h>
+
+#include <psa/crypto.h>
+#include <psa/crypto_extra.h>
 
 #include <psa/nrf_platform_key_ids.h>
 
@@ -84,12 +87,12 @@ static void export_ika_public_key(void)
 	size_t public_key_buffer_written_bytes = 0;
 
 	LOG_INF("##### export_ika_public_key : now calling ssf_psa_crypto_init #####");
-	err = ssf_psa_crypto_init();
+	err = psa_crypto_init();
 	if (PSA_SUCCESS == err)
 	{
 		LOG_INF("##### export_ika_public_key : now calling ssf_psa_export_public_key #####");
 		LOG_INF("##### export_ika_public_key : call to get key 0x%08x - size %d #####", IAK_KEY_ID, public_key_buffer_size);
-		err = ssf_psa_export_public_key((mbedtls_svc_key_id_t )IAK_KEY_ID, 
+		err = psa_export_public_key((mbedtls_svc_key_id_t )IAK_KEY_ID, 
 										public_key_buffer, 
 										public_key_buffer_size, 
 										&public_key_buffer_written_bytes);
