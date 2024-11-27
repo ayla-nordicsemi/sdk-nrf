@@ -21,6 +21,11 @@ config ENABLE_RESET_EVT_SUBSCRIBE_REQUEST
 	depends on SSF_RESET_EVT_SERVICE_ENABLED
 	default y
 
+config ENABLE_DEVICE_INFO_REQUEST
+	bool "Enable SSF device info service(s)"
+	depends on SSF_DEVICE_INFO_SERVICE_ENABLED
+	default y
+
 config ENABLE_SDFW_UPDATE_REQUEST
 	bool "Enable the SDFW update service"
 	depends on SSF_SDFW_UPDATE_SERVICE_ENABLED
