@@ -38,11 +38,11 @@ LOG_MODULE_REGISTER(user_app_jwt, CONFIG_USER_APP_JWT_LOG_LEVEL);
 /* Size of an SHA 256 hash */
 #define ECDSA_SHA_256_HASH_SZ	(32)
 
-/* Size of a private ECDSA key in raw binary format */
-#define ECDSA_PRIVATE_KEY_SZ    (32)
-
 /* Size of a public ECDSA key in raw binary format  */
 #define ECDSA_PUBLIC_KEY_SZ		(65)
+
+/* Size of a public ECDSA key in DER format  */
+#define ECDSA_PUBLIC_KEY_DER_SZ		(91)
 
 /* Macro to determine the size of a data encoded in base64 */
 #define BASE64_ENCODE_SZ(n)	(((4 * n / 3) + 3) & ~3)
@@ -174,6 +174,38 @@ static int crypto_init(void)
 
 
 //---------------------------------------------------------------------------//
+static int raw_ecc_pubkey_to_der(uint8_t *raw_pub_key, uint8_t *der_pub_key,
+							const size_t der_pub_key_buffer_size, size_t *der_pub_key_len)
+{
+	int err = -1;
+	if (ECDSA_PUBLIC_KEY_DER_SZ <= der_pub_key_buffer_size) {
+		uint8_t der_pubkey_header[27] = {
+			// integer sequence of 89 bytes
+			0x30, 0x59,
+			// integer sequence of 19 bytes
+			0x30, 0x13,
+			// ecPublicKey (ANSI X9.62 public key type)
+			0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01,
+			// prime256v1 (ANSI X9.62 named elliptic curve)
+			0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07,
+			// integer sequence of 66 bytes
+			0x03, 0x42,
+			// header of uncompressed RAW public ECC key
+			0x00, 0x04
+		};
+
+		memcpy(der_pub_key, der_pubkey_header, sizeof(der_pubkey_header));
+		memcpy((der_pub_key + 27), (raw_pub_key + 1), ECDSA_PUBLIC_KEY_SZ - 1);
+
+		*der_pub_key_len = ECDSA_PUBLIC_KEY_DER_SZ;
+		err = 0;
+	}
+
+	return err;
+}
+
+
+//---------------------------------------------------------------------------//
 static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
 										uint8_t *key_hash_out,
 										size_t key_hash_buffer_size,
@@ -190,10 +222,17 @@ static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
 		return -1;
 	}
 
-	/* Compute the SHA256 hash of public key */
+	uint8_t pubkey_der[ECDSA_PUBLIC_KEY_DER_SZ] = {0};
+	size_t pubkey_der_len = 0;
+	if (0 != raw_ecc_pubkey_to_der(pub_key, pubkey_der, sizeof(pubkey_der), &pubkey_der_len)) {
+		LOG_ERR("raw_pubkey_to_der failed! (Error: %d)", status);
+		return -1;
+	}
+
+	/* Compute the SHA256 hash of public key DER format */
 	status = psa_hash_compute(PSA_ALG_SHA_256,
-				  pub_key,
-				  sizeof(pub_key),
+				  pubkey_der,
+				  sizeof(pubkey_der),
 				  key_hash_out,
 				  key_hash_buffer_size,
 				  key_hash_lenght);
@@ -527,6 +566,9 @@ static char *unsigned_jwt_create(struct app_jwt_data *const jwt)
 	/* Create the base64 URL data to be signed */
 	unsigned_jwt = jwt_header_payload_combine(hdr_b64, pay_b64);
 
+	free(hdr_b64);
+	hdr_b64 = NULL;
+
 	free(pay_b64);
 	pay_b64 = NULL;
 
@@ -638,6 +680,7 @@ int user_app_jwt_generate(struct app_jwt_data *const jwt)
 	err = jwt_signature_append(unsigned_jwt, jwt_sig, jwt->jwt_buf, jwt->jwt_sz);
 
 	free(unsigned_jwt);
+	unsigned_jwt = NULL;
 
 	return err;
 }
