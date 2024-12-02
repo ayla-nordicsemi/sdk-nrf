@@ -59,6 +59,10 @@ LOG_MODULE_REGISTER(user_app_jwt, CONFIG_USER_APP_JWT_LOG_LEVEL);
 /* lenght of uint64_t_max written as a string + 1 string termination character */
 #define JWT_EXPIRATION_STR_LENGTH (21)
 
+#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
+static uint8_t exported_pub_key[ECDSA_PUBLIC_KEY_SZ] = {0};
+#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
+
 //---------------------------------------------------------------------------//
 static uint32_t swap_endian(uint32_t value)
 {
@@ -221,6 +225,9 @@ static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
 		LOG_ERR("psa_export_public_key failed! (Error: %d)", status);
 		return -1;
 	}
+#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
+	memcpy(exported_pub_key, pub_key, ECDSA_PUBLIC_KEY_SZ);
+#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 	uint8_t pubkey_der[ECDSA_PUBLIC_KEY_DER_SZ] = {0};
 	size_t pubkey_der_len = 0;
@@ -244,41 +251,61 @@ static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
 	return status;
 }
 
-
+#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
 //---------------------------------------------------------------------------//
-static int hash_and_sign_message(const uint32_t user_key_id, const uint8_t *input, size_t input_length,
-				uint8_t *signature, size_t signature_size, size_t *signature_length)
+static int verify_message_signature(const uint32_t user_key_id,
+									const char *const message, size_t message_size,
+									uint8_t *signature, size_t signature_size)
 {
-	uint32_t output_len;
-	uint8_t msg_hash[ECDSA_SHA_256_HASH_SZ];
 	psa_status_t status;
 
-	/* Compute the SHA256 hash*/
-	status = psa_hash_compute(PSA_ALG_SHA_256,
-				  input,
-				  input_length,
-				  msg_hash,
-				  sizeof(msg_hash),
-				  &output_len);
+	LOG_INF("Verifying ECDSA signature...");
+
+	/* Verify the signature of the message */
+	status = psa_verify_message(user_key_id,
+				 PSA_ALG_ECDSA(PSA_ALG_SHA_256),
+				 message,
+				 message_size,
+				 signature,
+				 signature_size);
 	if (status != PSA_SUCCESS) {
-		LOG_ERR("psa_hash_compute failed! (Error: %d)", status);
+		LOG_INF("psa_verify_message failed! (Error: %d)", status);
 		return -1;
 	}
+
+	LOG_INF("Signature verification was successful!");
+	return 0;
+}
+#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
+
+//---------------------------------------------------------------------------//
+static int sign_message(const uint32_t user_key_id, const uint8_t *input, size_t input_length,
+				uint8_t *signature, size_t signature_size, size_t *signature_length)
+{
+	psa_status_t status;
 
 	/* Sign the hash */
 	status = psa_sign_message(user_key_id,
 			       PSA_ALG_ECDSA(PSA_ALG_SHA_256),
-			       msg_hash,
-			       sizeof(msg_hash),
+			       input,
+			       input_length,
 			       signature,
 			       signature_size,
-			       &output_len);
+			       signature_length);
 	if (status != PSA_SUCCESS) {
 		LOG_ERR("psa_sign_hash failed! (Error: %d)", status);
 		return -1;
 	}
 
-	*signature_length = output_len;
+#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
+	int err = verify_message_signature(IAK_APPLICATION_GEN1,
+									input, input_length,
+									signature, *signature_length);
+	if (err) {
+		LOG_ERR("Failed to verify message : %d", err);
+		return -EACCES;
+	}
+#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 	return 0;
 }
@@ -593,7 +620,7 @@ static int jwt_signature_get(const uint32_t user_key_id, const int sec_tag, cons
 		return -ENOMEM;
 	}
 
-	err = hash_and_sign_message(IAK_APPLICATION_GEN1, jwt, strlen(jwt), sig_raw, ECDSA_SHA_256_SIG_SZ, &o_len);
+	err = sign_message(IAK_APPLICATION_GEN1, jwt, strlen(jwt), sig_raw, ECDSA_SHA_256_SIG_SZ, &o_len);
 	if (err) {
 		LOG_ERR("Failed to sign message : %d", err);
 		return -EACCES;
