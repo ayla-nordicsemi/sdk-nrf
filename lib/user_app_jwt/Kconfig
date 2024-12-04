@@ -1,0 +1,39 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menuconfig USER_APP_JWT
+	bool "User Application JWT Library"
+	select BASE64
+	select CJSON_LIB
+	# needed to print integer values in json
+	select CBPRINTF_FP_SUPPORT
+
+if USER_APP_JWT
+
+config JWT_VERIFY_SIGNATURE
+	bool "Verify signature after signing"
+	default y
+
+config PRINT_EXPORTED_PUBKEY_DER
+	bool "Print to terminal the DER formatted public key"
+	default y
+
+config USER_APP_JWT_MAX_LEN
+	int "Buffer size to allocate for JWT"
+	default 900
+	help
+	  Minimum JWT response is ~470 bytes.
+
+config USER_APP_JWT_LOG_LEVEL
+	int "logging level for JWT generation"
+	default 3
+	help
+	  Set the logging level for JWT generation.
+
+module=USER_APP_JWT
+module-str=User App JWT
+
+endif # USER_APP_JWT
