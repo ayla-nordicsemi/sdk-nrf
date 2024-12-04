@@ -20,7 +20,9 @@
 #include <cJSON.h>
 
 #include <user_app_jwt.h>
-
+#if defined(CONFIG_DATE_TIME)
+#include <date_time.h>
+#endif
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/logging/log.h>
@@ -59,10 +61,6 @@ LOG_MODULE_REGISTER(user_app_jwt, CONFIG_USER_APP_JWT_LOG_LEVEL);
 /* lenght of uint64_t_max written as a string + 1 string termination character */
 #define JWT_EXPIRATION_STR_LENGTH (21)
 
-#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
-static uint8_t exported_pub_key[ECDSA_PUBLIC_KEY_SZ] = {0};
-#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
-
 //---------------------------------------------------------------------------//
 static uint32_t swap_endian(uint32_t value)
 {
@@ -72,22 +70,6 @@ static uint32_t swap_endian(uint32_t value)
 			((value << 24) & 0xFF000000);
 }
 
-
-#if defined(CONFIG_DATE_TIME)
-// TODO : user propper date_time_now() API.
-//---------------------------------------------------------------------------//
-static int date_time_now(uint64_t *exp_ts_s)
-{
-	/* no time source for the moment, this will always return
-		value in seconds since january 1970 assuming today's date is
-		Monday, January 1, 2024 12:00:00 AM
-		use https://www.epochconverter.com/ to generate a new value */
-	
-	*exp_ts_s = 1704067200;
-
-	return 0;
-}
-#endif /* CONFIG_DATE_TIME */
 
 //---------------------------------------------------------------------------//
 static void base64_url_format(char *const base64_string)
@@ -160,6 +142,58 @@ static int bytes_to_uuid_str(const uint32_t *uuid_words, const int32_t uuid_byte
 	return 0;
 }
 
+#if defined(CONFIG_PRINT_EXPORTED_PUBKEY_DER)
+//---------------------------------------------------------------------------//
+static int bytes_to_str(const uint8_t* const bytes_buf, const size_t bytes_len, 
+						char* string_buff, const size_t string_size, size_t* string_len)
+{
+	int err = 0;
+	if ((NULL != bytes_buf) && (0 != bytes_len) && 
+		(NULL != string_buff) && (0 != string_size)) {
+		uint32_t str_pos = 0;
+		uint8_t byte_h, byte_l = 0;
+		for (uint32_t count = 0; count < bytes_len; count++)
+		{
+			byte_h = ((bytes_buf[count] >> 4) & 0xF);
+			byte_l = (bytes_buf[count] & 0x0F);
+			if (byte_h < 10) {
+				byte_h += '0';
+			} else {
+				byte_h += ('a' - 10);
+			}
+
+			if (byte_l < 10) {
+				byte_l += '0';
+			} else {
+				byte_l += ('a' - 10);
+			}
+
+			sprintf(string_buff + str_pos, "%c%c", (char)(byte_h), (char)(byte_l));
+			str_pos += 2;
+		}
+
+		string_buff[str_pos] = '\0';
+		*string_len = str_pos + 1;
+	} else {
+		LOG_ERR("bytes_to_str : bad parameters");
+		err = -1;
+	}
+
+	return err;
+}
+#endif /* CONFIG_PRINT_EXPORTED_PUBKEY_DER */
+
+#if !defined(CONFIG_DATE_TIME)
+//---------------------------------------------------------------------------//
+int date_time_now(uint64_t* timestampe)
+{
+	// For test purposes, use a simulated value of time
+	// Wednesday, December 4, 2024 3:00:43 PM GMT+02:00
+
+	*timestampe = 1733317243000;
+	return 0;
+}
+#endif
 
 //---------------------------------------------------------------------------//
 static int crypto_init(void)
@@ -210,11 +244,12 @@ static int raw_ecc_pubkey_to_der(uint8_t *raw_pub_key, uint8_t *der_pub_key,
 
 
 //---------------------------------------------------------------------------//
-static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
-										uint8_t *key_hash_out,
-										size_t key_hash_buffer_size,
-										size_t *key_hash_lenght)
+static int export_public_key_hash(const uint32_t user_key_id,
+									uint8_t *key_hash_out,
+									size_t key_hash_buffer_size,
+									size_t *key_hash_lenght)
 {
+	int err;
 	psa_status_t status;
 	size_t olen;
 	uint8_t pub_key[ECDSA_PUBLIC_KEY_SZ];
@@ -225,16 +260,25 @@ static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
 		LOG_ERR("psa_export_public_key failed! (Error: %d)", status);
 		return -1;
 	}
-#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
-	memcpy(exported_pub_key, pub_key, ECDSA_PUBLIC_KEY_SZ);
-#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 	uint8_t pubkey_der[ECDSA_PUBLIC_KEY_DER_SZ] = {0};
 	size_t pubkey_der_len = 0;
-	if (0 != raw_ecc_pubkey_to_der(pub_key, pubkey_der, sizeof(pubkey_der), &pubkey_der_len)) {
-		LOG_ERR("raw_pubkey_to_der failed! (Error: %d)", status);
+	err = raw_ecc_pubkey_to_der(pub_key, pubkey_der, sizeof(pubkey_der), &pubkey_der_len);
+	if (0 != err) {
+		LOG_ERR("raw_pubkey_to_der failed! (Error: %d)", err);
 		return -1;
 	}
+
+#if defined(CONFIG_PRINT_EXPORTED_PUBKEY_DER)
+	char pubkey_der_str[ECDSA_PUBLIC_KEY_DER_SZ * 2] = {0};
+	size_t pubkey_der_str_len = 0;
+	err = bytes_to_str(pubkey_der, pubkey_der_len, 
+			pubkey_der_str, sizeof(pubkey_der_str), &pubkey_der_str_len);
+	if (0 == err) {
+		/* Print DER formatted pubkey to traces */
+		LOG_INF("pubkey_der (%d) =  %s", pubkey_der_len, pubkey_der_str);
+	}
+#endif /* CONFIG_PRINT_EXPORTED_PUBKEY_DER */
 
 	/* Compute the SHA256 hash of public key DER format */
 	status = psa_hash_compute(PSA_ALG_SHA_256,
@@ -251,32 +295,6 @@ static int export_ecdsa_public_key_hash(const uint32_t user_key_id,
 	return status;
 }
 
-#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
-//---------------------------------------------------------------------------//
-static int verify_message_signature(const uint32_t user_key_id,
-									const char *const message, size_t message_size,
-									uint8_t *signature, size_t signature_size)
-{
-	psa_status_t status;
-
-	LOG_INF("Verifying ECDSA signature...");
-
-	/* Verify the signature of the message */
-	status = psa_verify_message(user_key_id,
-				 PSA_ALG_ECDSA(PSA_ALG_SHA_256),
-				 message,
-				 message_size,
-				 signature,
-				 signature_size);
-	if (status != PSA_SUCCESS) {
-		LOG_INF("psa_verify_message failed! (Error: %d)", status);
-		return -1;
-	}
-
-	LOG_INF("Signature verification was successful!");
-	return 0;
-}
-#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 //---------------------------------------------------------------------------//
 static int sign_message(const uint32_t user_key_id, const uint8_t *input, size_t input_length,
@@ -297,18 +315,33 @@ static int sign_message(const uint32_t user_key_id, const uint8_t *input, size_t
 		return -1;
 	}
 
+	return 0;
+}
+
+
 #if defined(CONFIG_JWT_VERIFY_SIGNATURE)
-	int err = verify_message_signature(IAK_APPLICATION_GEN1,
-									input, input_length,
-									signature, *signature_length);
-	if (err) {
-		LOG_ERR("Failed to verify message : %d", err);
-		return -EACCES;
+//---------------------------------------------------------------------------//
+static int verify_message_signature(const uint32_t user_key_id,
+									const char *const message, size_t message_size,
+									uint8_t *signature, size_t signature_size)
+{
+	psa_status_t status;
+
+	/* Verify the signature of the message */
+	status = psa_verify_message(user_key_id,
+				 PSA_ALG_ECDSA(PSA_ALG_SHA_256),
+				 message,
+				 message_size,
+				 signature,
+				 signature_size);
+	if (status != PSA_SUCCESS) {
+		LOG_INF("signature verification failed! (Error: %d)", status);
+		return -1;
 	}
-#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 	return 0;
 }
+#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 
 //---------------------------------------------------------------------------//
@@ -383,7 +416,7 @@ static char *jwt_header_create(const uint32_t alg, const uint32_t keyid)
 
 	/* Get kid: sha256 over public key */
 	size_t olen;
-	err = export_ecdsa_public_key_hash(IAK_APPLICATION_GEN1, pub_key_hash, ECDSA_SHA_256_HASH_SZ, &olen);
+	err = export_public_key_hash(IAK_APPLICATION_GEN1, pub_key_hash, ECDSA_SHA_256_HASH_SZ, &olen);
 	if (err) {
 		LOG_ERR("Failed to export public key, error: %d", err);
 		return NULL;
@@ -467,13 +500,17 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 
 	// Issued At: format: time in seconds as integer
 	uint64_t issue_time = 0;
-#if defined(CONFIG_DATE_TIME)
+
 	err = date_time_now(&issue_time);
-	if (!err) {
-		LOG_WARN("Unable to get a valid timestamp, using value 0s");
+	if (err) {
+		/* date_time_now error, use 0 value */
 		issue_time = 0;
+	} else {
+		/* date_time_now returns time in millisec */
+		issue_time = issue_time / 1000;
 	}
-#endif /* CONFIG_DATE_TIME */
+
+	// Issued at : timestamp is seconds
 	if (cJSON_AddNumberToObjectCS(jwt_pay, "iat", issue_time) == NULL) {
 		err = -ENOMEM;
 	}
@@ -562,13 +599,16 @@ static char *unsigned_jwt_create(struct app_jwt_data *const jwt)
 
 	/* Get expiration time stamp */
 	if (jwt->exp_delta_s > 0) {
-#if defined(CONFIG_TIME_DATE)
+
 		int err = date_time_now(&exp_ts_s);
-		if (!err) {
-			LOG_WARN("Unable to get a valid timestamp, using value 0s");
+		if (err) {
+			/* date_time_now error, use 0 value */
 			exp_ts_s = 0;
+		} else {
+			/* date_time_now returns time in millisec */
+			exp_ts_s = exp_ts_s / 1000;
 		}
-#endif /* CONFIG_TIME_DATE */
+
 		exp_ts_s += jwt->exp_delta_s;
 	}
 
@@ -625,6 +665,14 @@ static int jwt_signature_get(const uint32_t user_key_id, const int sec_tag, cons
 		LOG_ERR("Failed to sign message : %d", err);
 		return -EACCES;
 	}
+
+#if defined(CONFIG_JWT_VERIFY_SIGNATURE)
+	err = verify_message_signature(IAK_APPLICATION_GEN1, jwt, strlen(jwt),	sig_raw, o_len);
+	if (err) {
+		LOG_ERR("Failed to verify message : %d", err);
+		return -EACCES;
+	}
+#endif /* CONFIG_JWT_VERIFY_SIGNATURE */
 
 	err = crypto_finish();
 	if (err) {

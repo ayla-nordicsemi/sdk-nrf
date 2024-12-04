@@ -10,10 +10,6 @@ menuconfig JWT_SAMPLE
 	help
 	   "Enable sample-specific configurations."
 
-config JWT_VERIFY_SIGNATURE
-	bool "Automatically verify signature of JWT after it is generated"
-	default y
-
 if JWT_SAMPLE
 
 module = JWT_SAMPLE

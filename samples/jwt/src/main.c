@@ -16,8 +16,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(jwt_sample, CONFIG_JWT_SAMPLE_LOG_LEVEL);
 
-#define JWT_DURATION_S	(60*5)
-#define JWT_BUF_SZ	1024
+#define JWT_DURATION_S	(60*10)
 
 static int jwt_generate(uint32_t exp_time_s,
 						char *out_buffer,

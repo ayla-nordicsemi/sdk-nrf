@@ -13,11 +13,19 @@ menuconfig USER_APP_JWT
 
 if USER_APP_JWT
 
+config JWT_VERIFY_SIGNATURE
+	bool "Verify signature after signing"
+	default y
+
+config PRINT_EXPORTED_PUBKEY_DER
+	bool "Print to terminal the DER formatted public key"
+	default y
+
 config USER_APP_JWT_MAX_LEN
 	int "Buffer size to allocate for JWT"
 	default 900
 	help
-	  Minimum JWT response is ~420 bytes.
+	  Minimum JWT response is ~470 bytes.
 
 config USER_APP_JWT_LOG_LEVEL
 	int "logging level for JWT generation"
