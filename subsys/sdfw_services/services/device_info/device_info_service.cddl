@@ -6,57 +6,57 @@
 
 ; .. include_startingpoint_device_info_cddl_rst
 
-device_info_status = (SUCCESS: 0) /
-                     (INTERNAL_ERROR: 16781313) / 
-                     (UNPROGRAMMED: 16781314)
+stat = (SUCCESS: 0) /
+       (INTERNAL_ERROR: 16781313) /
+       (UNPROGRAMMED: 16781314)
 
-device_info_target = (UUID: 0) / 
-                     (TYPE: 1) /
-                     (TESTIMPRINT: 2) /
-                     (PARTNO: 3) /
-                     (HWREVISION: 4) /
-                     (PRODUCTIONREVISION: 5)
+entity = (UUID: 0) /
+         (TYPE: 1) /
+         (TESTIMPRINT: 2) /
+         (PARTNO: 3) /
+         (HWREVISION: 4) /
+         (PRODUCTIONREVISION: 5)
 
 ; Device Info service request payload.
-device_info_service_read_req = (
-      1,
-      target: device_info_target,
+read_req = (
+    1,
+    target: entity,
 )
 
-device_info_service_write_req = (
-      2,
-      target: device_info_target,
+write_req = (
+    2,
+    target: entity,
 	data: [1*8 uint] ; table of at least 1 int - at most 8 int
 )
 
 ; Device Info service response to read data.
-device_info_service_read_resp = (
-      1,
-      target: device_info_target,
-	status: device_info_status,
+read_resp = (
+    1,
+    target: entity,
+	status: stat,
 	data: [1*8 uint] ; table of at least 1 int - at most 8 int
 )
 
 ; Device Info service response to write payload.
-device_info_service_write_resp = (
-      2,
-      target: device_info_target,
-	status: device_info_status,
+write_resp = (
+    2,
+    target: entity,
+	status: stat,
 )
 
 device_info_req = [
       3,
       msg: (
-            device_info_service_read_req /
-            device_info_service_write_req
+            read_req /
+            write_req
       ),
 ]
 
 device_info_resp = [
       3,
       msg: (
-            device_info_service_read_resp /
-            device_info_service_write_resp
+            read_resp /
+            write_resp
       ),
 ]
 

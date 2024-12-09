@@ -1,10 +1,4 @@
 /*
- * Copyright (c) 2024 Nordic Semiconductor ASA
- *
- * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
- */
-
-/*
  * Generated using zcbor version 0.9.0
  * https://github.com/NordicSemiconductor/zcbor
  * Generated with a --default-max-qty of 3
@@ -31,68 +25,67 @@ extern "C" {
  */
 #define DEFAULT_MAX_QTY 3
 
-struct device_info_target_r {
+struct entity_r {
 	enum {
-		device_info_target_UUID_c = 0,
-		device_info_target_TYPE_c = 1,
-		device_info_target_TESTIMPRINT_c = 2,
-		device_info_target_PARTNO_c = 3,
-		device_info_target_HWREVISION_c = 4,
-		device_info_target_PRODUCTIONREVISION_c = 5,
-	} device_info_target_choice;
+		entity_UUID_c = 0,
+		entity_TYPE_c = 1,
+		entity_TESTIMPRINT_c = 2,
+		entity_PARTNO_c = 3,
+		entity_HWREVISION_c = 4,
+		entity_PRODUCTIONREVISION_c = 5,
+	} entity_choice;
 };
 
-struct device_info_status_r {
+struct stat_r {
 	enum {
-		device_info_status_SUCCESS_c = 0,
-		device_info_status_INTERNAL_ERROR_c = 16781313,
-		device_info_status_UNPROGRAMMED_c = 16781314,
-	} device_info_status_choice;
+		stat_SUCCESS_c = 0,
+		stat_INTERNAL_ERROR_c = 16781313,
+		stat_UNPROGRAMMED_c = 16781314,
+	} stat_choice;
 };
 
-
-struct device_info_service_read_req {
-	struct device_info_target_r device_info_service_read_req_target;
+struct read_req {
+	struct entity_r read_req_target;
 };
 
-struct device_info_service_read_resp {
-	struct device_info_target_r device_info_service_read_resp_target;
-	struct device_info_status_r device_info_service_read_resp_status;
-	uint32_t device_info_service_read_resp_data_uint[8];
-	size_t device_info_service_read_resp_data_uint_count;
+struct write_req {
+	struct entity_r write_req_target;
+	uint32_t write_req_data_uint[8];
+	size_t write_req_data_uint_count;
 };
 
-struct device_info_service_write_req {
-	struct device_info_target_r device_info_service_write_req_target;
-	uint32_t device_info_service_write_req_data_uint[8];
-	size_t device_info_service_write_req_data_uint_count;
+struct read_resp {
+	struct entity_r read_resp_target;
+	struct stat_r read_resp_status;
+	uint32_t read_resp_data_uint[8];
+	size_t read_resp_data_uint_count;
 };
 
-struct device_info_service_write_resp {
-	struct device_info_target_r device_info_service_write_resp_target;
-	struct device_info_status_r device_info_service_write_resp_status;
+struct write_resp {
+	struct entity_r write_resp_target;
+	struct stat_r write_resp_status;
 };
 
 struct device_info_req {
 	union {
-		struct device_info_service_read_req device_info_req_msg_device_info_service_read_req_m;
-		struct device_info_service_write_req device_info_req_msg_device_info_service_write_req_m;
+		struct read_req req_msg_read_req_m;
+		struct write_req req_msg_write_req_m;
 	};
 	enum {
-		device_info_req_msg_device_info_service_read_req_m_c,
-		device_info_req_msg_device_info_service_write_req_m_c,
-	} device_info_req_msg_choice;
+		req_msg_read_req_m_c,
+		req_msg_write_req_m_c,
+	} req_msg_choice;
 };
 
 struct device_info_resp {
 	union {
-		struct device_info_service_read_resp device_info_resp_msg_device_info_service_read_resp_m;
-		struct device_info_service_write_resp device_info_resp_msg_device_info_service_write_resp_m;
+		struct read_resp resp_msg_read_resp_m;
+		struct write_resp resp_msg_write_resp_m;
 	};
 	enum {
-		device_info_resp_msg_device_info_service_read_resp_m_c,
-		device_info_resp_msg_device_info_service_write_resp_m_c,
-	} device_info_resp_msg_choice;
+		resp_msg_read_resp_m_c,
+		resp_msg_write_resp_m_c,
+	} resp_msg_choice;
 };
 
 #ifdef __cplusplus

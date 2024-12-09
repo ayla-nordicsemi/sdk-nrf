@@ -25,60 +25,59 @@ SSF_CLIENT_SERVICE_DEFINE(device_info_srvc, DEVICE_INFO, cbor_encode_device_info
 			  cbor_decode_device_info_resp);
 
 
-int ssf_device_info_get_uuid(uint32_t *uuid_words, size_t uuid_words_count)
+int ssf_device_info_get_uuid(uint32_t* uuid_words, const size_t uuid_words_count)
 {
-	int err = -1; /* initialize with negative value for error */
+	int err = -1;
 
 	if ((NULL != uuid_words) && (uuid_words_count >= UUID_BYTES_LENGTH)) {
-		// valid parameters
-		int ret = -1; /* initialize with negative value for error */
-		const uint8_t *rsp_pkt; /* For freeing response packet after copying rsp_str. */
+		int ret = -1;
+		const uint8_t *rsp_pkt;
 
-		struct device_info_service_read_req uuid_read_req = {
-				.device_info_service_read_req_target.device_info_target_choice = device_info_target_UUID_c,
+		struct read_req uuid_read_request = {
+				.read_req_target.entity_choice = entity_UUID_c,
 			};
 
-		struct device_info_req read_req = {
-				.device_info_req_msg_choice = device_info_req_msg_device_info_service_read_req_m_c,
-				.device_info_req_msg_device_info_service_read_req_m = uuid_read_req
+		struct device_info_req read_request = {
+				.req_msg_choice = req_msg_read_req_m_c,
+				.req_msg_read_req_m = uuid_read_request
 		};
 
-		struct device_info_resp read_resp;
+		struct device_info_resp read_response;
 
-		err = ssf_client_send_request(&device_info_srvc, &read_req, &read_resp, &rsp_pkt);
+		err = ssf_client_send_request(&device_info_srvc, &read_request, &read_response,
+									&rsp_pkt);
 		if (err != 0) {
 			return err;
 		}
 
-		struct device_info_service_read_resp uuid_read_resp = read_resp.device_info_resp_msg_device_info_service_read_resp_m;
-		if (read_resp.device_info_resp_msg_choice == device_info_resp_msg_device_info_service_read_resp_m_c) {
-			if (device_info_target_UUID_c == uuid_read_resp.device_info_service_read_resp_target.device_info_target_choice) {
-				ret = read_resp.device_info_resp_msg_device_info_service_read_resp_m.device_info_service_read_resp_status.device_info_status_choice;
-				if (device_info_status_SUCCESS_c != ret) {
+		struct read_resp uuid_read_response = read_response.resp_msg_read_resp_m;
+		if (read_response.resp_msg_choice == resp_msg_read_resp_m_c) {
+			if (entity_UUID_c == uuid_read_response.read_resp_target.entity_choice) {
+				ret = read_response.resp_msg_read_resp_m.read_resp_status.stat_choice;
+				if (stat_SUCCESS_c != ret) {
 					ssf_client_decode_done(rsp_pkt);
 					return ret;
 				}
 			} else {
-				// not a read UUID response
+				/* the received response message is not a read UUID response */
 				ssf_client_decode_done(rsp_pkt);
-				return device_info_status_INTERNAL_ERROR_c;
+				return stat_INTERNAL_ERROR_c;
 			}
 
 		} else {
-			// not a read response
+			/* the received response message is not a read response */
 			ssf_client_decode_done(rsp_pkt);
-			return device_info_status_INTERNAL_ERROR_c;
+			return stat_INTERNAL_ERROR_c;
 		}
 
-		size_t uuid_words_len = uuid_read_resp.device_info_service_read_resp_data_uint_count;
-		memcpy(uuid_words, uuid_read_resp.device_info_service_read_resp_data_uint, uuid_words_len * sizeof(uint32_t));
+		size_t uuid_words_len = uuid_read_response.read_resp_data_uint_count;
+		memcpy(uuid_words,
+				uuid_read_response.read_resp_data_uint,
+				uuid_words_len * sizeof(uint32_t));
 
 		ssf_client_decode_done(rsp_pkt);
-	} else {
-		// invalid parameters
-		err = -1;
-
 	}
+
 	return err;
 }
 
