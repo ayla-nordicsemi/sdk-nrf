@@ -25,7 +25,7 @@ SSF_CLIENT_SERVICE_DEFINE(device_info_srvc, DEVICE_INFO, cbor_encode_device_info
 			  cbor_decode_device_info_resp);
 
 
-int ssf_device_info_get_uuid(uint32_t* uuid_words, const size_t uuid_words_count)
+int ssf_device_info_get_uuid(uint32_t *uuid_words, const size_t uuid_words_count)
 {
 	int err = -1;
 

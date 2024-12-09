@@ -7,40 +7,40 @@
 ; .. include_startingpoint_device_info_cddl_rst
 
 stat = (SUCCESS: 0) /
-       (INTERNAL_ERROR: 16781313) /
-       (UNPROGRAMMED: 16781314)
+	(INTERNAL_ERROR: 16781313) /
+	(UNPROGRAMMED: 16781314)
 
 entity = (UUID: 0) /
-         (TYPE: 1) /
-         (TESTIMPRINT: 2) /
-         (PARTNO: 3) /
-         (HWREVISION: 4) /
-         (PRODUCTIONREVISION: 5)
+	(TYPE: 1) /
+	(TESTIMPRINT: 2) /
+	(PARTNO: 3) /
+	(HWREVISION: 4) /
+	(PRODUCTIONREVISION: 5)
 
 ; Device Info service request payload.
 read_req = (
-    1,
-    target: entity,
+	1,
+	target: entity,
 )
 
 write_req = (
-    2,
-    target: entity,
+	2,
+	target: entity,
 	data: [1*8 uint] ; table of at least 1 int - at most 8 int
 )
 
 ; Device Info service response to read data.
 read_resp = (
-    1,
-    target: entity,
+	1,
+	target: entity,
 	status: stat,
 	data: [1*8 uint] ; table of at least 1 int - at most 8 int
 )
 
 ; Device Info service response to write payload.
 write_resp = (
-    2,
-    target: entity,
+	2,
+	target: entity,
 	status: stat,
 )
 
