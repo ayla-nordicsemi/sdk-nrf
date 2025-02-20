@@ -39,6 +39,9 @@ LOG_MODULE_REGISTER(app_jwt, CONFIG_APP_JWT_LOG_LEVEL);
 /* String size of a binary word encoded in hexadecimal */
 #define BINARY_WORD_STR_SZ (9)
 
+/* Default signing key is IAK GEN1 */
+#define DEFAULT_IAK_APPLICATION IAK_APPLICATION_GEN1
+
 /* Size of an ECDSA signature */
 #define ECDSA_SHA_256_SIG_SZ (64)
 
@@ -135,6 +138,7 @@ static int crypto_init(void)
 	return 0;
 }
 
+#if !defined(CONFIG_APP_JWT_SIMPLIFIED)
 static int raw_ecc_pubkey_to_der(uint8_t *raw_pub_key, uint8_t *der_pub_key,
 				 const size_t der_pub_key_buffer_size, size_t *der_pub_key_len)
 {
@@ -164,6 +168,7 @@ static int raw_ecc_pubkey_to_der(uint8_t *raw_pub_key, uint8_t *der_pub_key,
 
 	return err;
 }
+
 
 static int export_public_key_hash(const uint32_t user_key_id, uint8_t *key_hash_out,
 				  size_t key_hash_buffer_size, size_t *key_hash_Length)
@@ -214,6 +219,7 @@ static int export_public_key_hash(const uint32_t user_key_id, uint8_t *key_hash_
 
 	return status;
 }
+#endif /* !defined(CONFIG_APP_JWT_SIMPLIFIED) */
 
 static int sign_message(const uint32_t user_key_id, const uint8_t *input, size_t input_length,
 			uint8_t *signature, size_t signature_size, size_t *signature_length)
@@ -250,6 +256,7 @@ static int verify_message_signature(const uint32_t user_key_id, const char *cons
 }
 #endif /* CONFIG_APP_JWT_VERIFY_SIGNATURE */
 
+#if !defined(CONFIG_APP_JWT_SIMPLIFIED)
 static int get_random_bytes(uint8_t *output_buffer, const size_t output_length)
 {
 	int err = -ENODATA;
@@ -270,13 +277,14 @@ static int get_random_bytes(uint8_t *output_buffer, const size_t output_length)
 
 	return err;
 }
+#endif /* !defined(CONFIG_APP_JWT_SIMPLIFIED) */
 
-static int crypto_finish(void)
+static int crypto_finish(const int key_id)
 {
 	psa_status_t status;
 
 	/* Purge the key from memory */
-	status = psa_purge_key(IAK_APPLICATION_GEN1);
+	status = psa_purge_key(key_id);
 	if (status != PSA_SUCCESS) {
 		LOG_ERR("psa_purge_key failed! (Error: %d)", status);
 		return -ENOMEM;
@@ -285,11 +293,9 @@ static int crypto_finish(void)
 	return 0;
 }
 
-static char *jwt_header_create(const uint32_t alg, const uint32_t keyid)
+static char *jwt_header_create(const uint32_t alg, const uint32_t key_id)
 {
 	int err = 0;
-
-	uint8_t pub_key_hash[ECDSA_SHA_256_HASH_SZ];
 
 	char *hdr_str = NULL;
 
@@ -314,11 +320,14 @@ static char *jwt_header_create(const uint32_t alg, const uint32_t keyid)
 		goto clean_exit;
 	}
 
-	/* Keyid: format: sha256 string */
+#if !defined(CONFIG_APP_JWT_SIMPLIFIED)
+	uint8_t pub_key_hash[ECDSA_SHA_256_HASH_SZ];
+
+	/* Kid: format: sha256 string */
 	/* Get kid: sha256 over public key */
 	size_t olen;
 
-	err = export_public_key_hash(IAK_APPLICATION_GEN1, pub_key_hash, ECDSA_SHA_256_HASH_SZ,
+	err = export_public_key_hash(key_id, pub_key_hash, ECDSA_SHA_256_HASH_SZ,
 				     &olen);
 	if (err) {
 		LOG_ERR("Failed to export public key, error: %d", err);
@@ -339,6 +348,7 @@ static char *jwt_header_create(const uint32_t alg, const uint32_t keyid)
 	if (cJSON_AddStringToObjectCS(jwt_hdr, "kid", sha256_str) == NULL) {
 		err = -ENOMEM;
 	}
+#endif /* !defined(CONFIG_APP_JWT_SIMPLIFIED) */
 
 	if (err == 0) {
 		hdr_str = cJSON_PrintUnformatted(jwt_hdr);
@@ -405,7 +415,7 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 
 	struct timespec tp;
 
-	uint64_t issue_time;
+	uint64_t issue_time = 0;
 
 	char *pay_str = NULL;
 
@@ -424,6 +434,7 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 		issue_time = tp.tv_sec;
 	}
 
+#if !defined(CONFIG_APP_JWT_SIMPLIFIED)
 	/* Issued at : timestamp is seconds */
 	if (cJSON_AddNumberToObjectCS(jwt_pay, "iat", issue_time) == NULL) {
 		err = -ENOMEM;
@@ -451,8 +462,10 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 			err = -ENOMEM;
 		}
 	}
+#endif /* !defined(CONFIG_APP_JWT_SIMPLIFIED) */
 
 	if (sub != NULL) {
+#if !defined(CONFIG_APP_JWT_SIMPLIFIED)
 		/* Issuer: format: <hardware_id>.<sub> */
 		char iss_str[JWT_CLAIM_FILED_STR_LENGTH] = {0};
 
@@ -462,6 +475,7 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 		if (cJSON_AddStringToObjectCS(jwt_pay, "iss", iss_str) == NULL) {
 			err = -ENOMEM;
 		}
+#endif /* !defined(CONFIG_APP_JWT_SIMPLIFIED) */
 
 		/* Subject: format: "user_defined_string" */
 		if (cJSON_AddStringToObjectCS(jwt_pay, "sub", sub) == NULL) {
@@ -477,7 +491,7 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 	/* Expiration: format: time in seconds as integer + expiration */
 	if (exp > 0) {
 		/* Add expiration (exp) claim */
-		if (cJSON_AddNumberToObjectCS(jwt_pay, "exp", exp) == NULL) {
+		if (cJSON_AddNumberToObjectCS(jwt_pay, "exp", (exp + issue_time)) == NULL) {
 			err = -ENOMEM;
 		}
 	}
@@ -494,18 +508,16 @@ static char *jwt_payload_create(const char *const sub, const char *const aud, ui
 
 static char *unsigned_jwt_create(struct app_jwt_data *const jwt)
 {
-	uint64_t exp_ts_s = 0;
-
 	char *hdr_str, *pay_str;
 
 	char *hdr_b64, *pay_b64;
 
 	char *unsigned_jwt = NULL;
 
-	struct timespec tp;
+	int key_id = DEFAULT_IAK_APPLICATION;
 
 	/* Create the header */
-	hdr_str = jwt_header_create(jwt->alg, jwt->key);
+	hdr_str = jwt_header_create(jwt->alg, key_id);
 	if (!hdr_str) {
 		LOG_ERR("Failed to create JWT JSON payload");
 		return NULL;
@@ -522,22 +534,8 @@ static char *unsigned_jwt_create(struct app_jwt_data *const jwt)
 		return NULL;
 	}
 
-	/* Get expiration time stamp */
-	if (jwt->validity_s > 0) {
-		int err = clock_gettime(CLOCK_REALTIME, &tp);
-
-		if (err) {
-			/* clock_gettime error, use 0 value */
-			exp_ts_s = 0;
-		} else {
-			exp_ts_s = tp.tv_sec;
-		}
-
-		exp_ts_s += jwt->validity_s;
-	}
-
 	/* Create the payload */
-	pay_str = jwt_payload_create(jwt->subject, jwt->audience, exp_ts_s);
+	pay_str = jwt_payload_create(jwt->subject, jwt->audience, jwt->validity_s);
 	if (!pay_str) {
 		LOG_ERR("Failed to create JWT JSON payload");
 		goto clean_hdr_64_exit;
@@ -567,7 +565,7 @@ clean_hdr_64_exit:
 	return unsigned_jwt;
 }
 
-static int jwt_signature_get(const uint32_t user_key_id, const int sec_tag, const char *const jwt,
+static int jwt_signature_get(const int key_id, const char *const jwt,
 			     char *const sig_buf, size_t sig_sz)
 {
 	int err;
@@ -577,10 +575,7 @@ static int jwt_signature_get(const uint32_t user_key_id, const int sec_tag, cons
 	uint8_t sig_raw[ECDSA_SHA_256_SIG_SZ];
 
 	/* Use Application IAK key for signing the JWT */
-	/* Ignore the provided key_id and sec_tag */
-	(void)sec_tag;
-	(void)user_key_id;
-	err = sign_message(IAK_APPLICATION_GEN1, jwt, strlen(jwt), sig_raw, ECDSA_SHA_256_SIG_SZ,
+	err = sign_message(key_id, jwt, strlen(jwt), sig_raw, ECDSA_SHA_256_SIG_SZ,
 			   &o_len);
 	if (err) {
 		LOG_ERR("Failed to sign message : %d", err);
@@ -588,7 +583,7 @@ static int jwt_signature_get(const uint32_t user_key_id, const int sec_tag, cons
 	}
 
 #if defined(CONFIG_APP_JWT_VERIFY_SIGNATURE)
-	err = verify_message_signature(IAK_APPLICATION_GEN1, jwt, strlen(jwt), sig_raw, o_len);
+	err = verify_message_signature(key_id, jwt, strlen(jwt), sig_raw, o_len);
 	if (err) {
 		LOG_ERR("Failed to verify message signature : %d", err);
 		return -EACCES;
@@ -644,9 +639,20 @@ int app_jwt_generate(struct app_jwt_data *const jwt)
 
 	int err = 0;
 
+	int key_id = DEFAULT_IAK_APPLICATION;
+
 	char *unsigned_jwt;
 
 	uint8_t jwt_sig[B64_SIG_SZ];
+
+	if (jwt->sec_tag) {
+		/**
+		 * Using sec_tag as key_id, you should be sure the provided
+		 * sec_tag is a valid key_id
+		 */
+		LOG_ERR("sec_tag provided, this is not supported");
+		return -ENOTSUP;
+	}
 
 	/* Init crypto services, required for the rest of the operations */
 	err = crypto_init();
@@ -659,30 +665,30 @@ int app_jwt_generate(struct app_jwt_data *const jwt)
 	unsigned_jwt = unsigned_jwt_create(jwt);
 	if (!unsigned_jwt) {
 		LOG_ERR("Failed to create JWT to be signed");
-		return -EIO;
+		goto finish_crypto_exit;
 	}
 
 	/* Get the signature of the unsigned JWT */
-	err = jwt_signature_get(jwt->key, jwt->sec_tag, unsigned_jwt, jwt_sig, sizeof(jwt_sig));
+	err = jwt_signature_get(key_id, unsigned_jwt, jwt_sig, sizeof(jwt_sig));
 	if (err) {
 		LOG_ERR("Failed to get JWT signature, error: %d", err);
-		free(unsigned_jwt);
-		unsigned_jwt = NULL;
-		return -ENOEXEC;
-	}
-
-	/* Crypto services not required anymore */
-	err = crypto_finish();
-	if (err) {
-		LOG_ERR("Failed to sign message : %d", err);
-		return err;
+		goto clean_exit;
 	}
 
 	/* Append the signature, creating the complete JWT */
 	err = jwt_signature_append(unsigned_jwt, jwt_sig, jwt->jwt_buf, jwt->jwt_sz);
 
+clean_exit:
 	free(unsigned_jwt);
 	unsigned_jwt = NULL;
+
+finish_crypto_exit:
+	/* Crypto services not required anymore */
+	err = crypto_finish(key_id);
+	if (err) {
+		LOG_ERR("Failed to sign message : %d", err);
+		return err;
+	}
 
 	return err;
 }
