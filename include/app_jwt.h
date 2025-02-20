@@ -101,7 +101,8 @@ struct app_jwt_data {
  * @param[in,out] jwt Pointer to struct containing JWT parameters and result.
  *
  * @retval 0 If the operation was successful.
- *         Otherwise, a (negative) error code is returned, check header errno.h for a full list.
+ * @retval a (negative) error code is returned, check header errno.h for a full list.
+ * 
  */
 int app_jwt_generate(struct app_jwt_data *const jwt);
 
@@ -119,7 +120,8 @@ int app_jwt_generate(struct app_jwt_data *const jwt);
  * @param[in] uuid_buffer_size Size of the provided buffer.
  *
  * @retval 0 If the operation was successful.
- *         Otherwise, a (negative) error code is returned, check header errno.h for a full list.
+ * @retval a negative error code is returned, check header errno.h for a full list.
+ * 
  */
 int app_jwt_get_uuid(char *uuid_buffer, const size_t uuid_buffer_size);
 

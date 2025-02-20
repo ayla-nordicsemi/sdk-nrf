@@ -27,10 +27,10 @@ static int jwt_generate(uint32_t exp_time_s, char *out_buffer, const size_t out_
 
 	int err = -EINVAL;
 
-	struct app_jwt_data jwt = {.sec_tag = 0, /* Irrelevant since JWT will be signed with IAK */
-				   .key = 0,	 /* Irrelevant since JWT will be signed with IAK */
+	struct app_jwt_data jwt = {.sec_tag = 0x41020100,
+				   .key = 0,
 				   .alg = JWT_ALG_TYPE_ES256,
-				   .audience = JWT_AUDIENCE_STR,
+				   .audience = 0,
 				   .jwt_buf = out_buffer,
 				   .jwt_sz = out_buffer_size};
 
