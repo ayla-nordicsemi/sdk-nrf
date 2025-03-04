@@ -70,6 +70,8 @@ static int get_random_bytes_str(uint8_t *output_str, const size_t output_str_siz
 {
 	int err = -ENODATA;
 	psa_status_t status;
+	uint8_t tmp_output_buffer[(RANDOM_STR_MAX_SIZE - 1) / 2] = {0};
+	int printed_bytes = 0;
 
 	if ((NULL == output_str) || (output_str_size > (RANDOM_STR_MAX_SIZE))) {
 		/* Bad parameter */
@@ -83,8 +85,6 @@ static int get_random_bytes_str(uint8_t *output_str, const size_t output_str_siz
 		return status;
 	}
 
-	uint8_t tmp_output_buffer[(RANDOM_STR_MAX_SIZE - 1) / 2] = {0};
-
 	status = psa_generate_random(tmp_output_buffer, sizeof(tmp_output_buffer));
 
 	if (status != PSA_SUCCESS) {
@@ -93,8 +93,6 @@ static int get_random_bytes_str(uint8_t *output_str, const size_t output_str_siz
 	} else {
 		err = 0;
 	}
-
-	int printed_bytes = 0;
 
 	for (uint32_t i = 0; i < ((output_str_size - 1) / 8); i++) {
 		printed_bytes += snprintf((output_str + printed_bytes), 9, "%08x",
@@ -108,12 +106,14 @@ static int get_random_bytes_str(uint8_t *output_str, const size_t output_str_siz
 static int jwt_generate_simplified_token(uint32_t exp_time_s, char *out_buffer,
 					 const size_t out_buffer_size)
 {
+	int err = -EINVAL;
+	int user_key_id = 0;
+	char token_subject_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
+	char subject_random_str[RANDOM_STR_MAX_SIZE] = {0};
+
 	if (!out_buffer || !out_buffer_size) {
 		return -EINVAL;
 	}
-
-	int err = -EINVAL;
-	int user_key_id = 0;
 
 	/**
 	 * Simplified token requies using a propriatary key for signing.
@@ -149,9 +149,6 @@ static int jwt_generate_simplified_token(uint32_t exp_time_s, char *out_buffer,
 
 	/* Simplified token requies using a subject claim */
 	/* Subject: format: <hardware_id>.<16-random_bytes> */
-	char token_subject_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
-
-	char subject_random_str[RANDOM_STR_MAX_SIZE] = {0};
 
 	if (0 == get_random_bytes_str(subject_random_str, RANDOM_STR_MAX_SIZE)) {
 		snprintf(token_subject_str, APP_JWT_CLAIM_MAX_SIZE, "%s.%s", CONFIG_BOARD,
@@ -178,11 +175,16 @@ static int jwt_generate_simplified_token(uint32_t exp_time_s, char *out_buffer,
 static int jwt_generate_full_token(uint32_t exp_time_s, char *out_buffer,
 				   const size_t out_buffer_size)
 {
+	int err = -EINVAL;
+	char device_uuid_str[APP_JWT_UUID_V4_STR_LEN] = {0};
+	char token_issuer_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
+	char json_token_id_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
+	char jti_random_str[RANDOM_STR_MAX_SIZE] = {0};
+	char audience_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
+
 	if (!out_buffer || !out_buffer_size) {
 		return -EINVAL;
 	}
-
-	int err = -EINVAL;
 
 	/* Full token used IAK key for signing */
 	struct app_jwt_data jwt = {.sec_tag = 0,
@@ -206,7 +208,6 @@ static int jwt_generate_full_token(uint32_t exp_time_s, char *out_buffer,
 
 	/* Full token requieres `sub`, `iss`, `jti` and `aud` claims */
 	/* Subject: format: "user_defined_string" , we use uuid as subject */
-	char device_uuid_str[APP_JWT_UUID_V4_STR_LEN] = {0};
 
 	/* Use app_jwt API for UUID */
 	if (0 != app_jwt_get_uuid(device_uuid_str, APP_JWT_UUID_V4_STR_LEN)) {
@@ -216,7 +217,6 @@ static int jwt_generate_full_token(uint32_t exp_time_s, char *out_buffer,
 	jwt.subject = device_uuid_str;
 
 	/* Issuer: format: <hardware_id>.<sub> */
-	char token_issuer_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
 
 	snprintf(token_issuer_str, APP_JWT_CLAIM_MAX_SIZE, "%s.%s", CONFIG_BOARD, jwt.subject);
 	token_issuer_str[APP_JWT_CLAIM_MAX_SIZE - 1] = '\0';
@@ -224,8 +224,6 @@ static int jwt_generate_full_token(uint32_t exp_time_s, char *out_buffer,
 	jwt.issuer = token_issuer_str;
 
 	/* Json Token ID: format: <hardware_id>.<16-random_bytes> */
-	char json_token_id_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
-	char jti_random_str[RANDOM_STR_MAX_SIZE] = {0};
 
 	if (0 == get_random_bytes_str(jti_random_str, RANDOM_STR_MAX_SIZE)) {
 		snprintf(json_token_id_str, APP_JWT_CLAIM_MAX_SIZE, "%s.%s", CONFIG_BOARD,
@@ -236,7 +234,6 @@ static int jwt_generate_full_token(uint32_t exp_time_s, char *out_buffer,
 	jwt.json_token_id = json_token_id_str;
 
 	/* Audience: format: "user_defined_string" */
-	char audience_str[APP_JWT_CLAIM_MAX_SIZE] = {0};
 
 	snprintf(audience_str, APP_JWT_CLAIM_MAX_SIZE, "%s", JWT_AUDIENCE_STR);
 	audience_str[APP_JWT_CLAIM_MAX_SIZE - 1] = '\0';
@@ -251,9 +248,9 @@ static int jwt_generate_full_token(uint32_t exp_time_s, char *out_buffer,
 
 int main(void)
 {
-	LOG_INF("Application JWT sample (%s)", CONFIG_BOARD);
-
 	char jwt_str[APP_JWT_STR_MAX_LEN] = {0};
+
+	LOG_INF("Application JWT sample (%s)", CONFIG_BOARD);
 
 	LOG_INF("JWT simplified token :");
 	int ret = jwt_generate_simplified_token(APP_JWT_VALID_TIME_S_MAX, jwt_str,

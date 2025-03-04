@@ -83,7 +83,7 @@ struct app_jwt_data {
 	const char *issuer;
 
 	/**
-	 * Indicates if an issue timestamp is requiered or not, if set to 1, 'exp' claim
+	 * Indicates if an issue timestamp is required or not, if set to 1, 'exp' claim
 	 * will be present.
 	 */
 	bool add_timestamp;
@@ -125,7 +125,6 @@ struct app_jwt_data {
  *
  * @retval 0 If the operation was successful.
  * @retval -errno Negative errno for other failures.
- *
  */
 int app_jwt_generate(struct app_jwt_data *const jwt);
 
@@ -144,7 +143,6 @@ int app_jwt_generate(struct app_jwt_data *const jwt);
  *
  * @retval 0 If the operation was successful.
  * @retval -errno Negative errno for other failures.
- *
  */
 int app_jwt_get_uuid(char *uuid_buffer, const size_t uuid_buffer_size);
 
